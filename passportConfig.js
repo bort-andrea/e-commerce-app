@@ -8,7 +8,7 @@ const bcrypt = require('bcrypt');
 passport.use(new LocalStrategy({
     usernameField: 'username',
     passwordField: 'password'
-}), async(username, password, done)=>{
+}, async(username, password, done)=>{
     try{
         //cerco l'utente nel database
         const user = await db.query("SELECT * FROM utenti WHERE username = $1",[username]);
@@ -27,7 +27,7 @@ passport.use(new LocalStrategy({
     }catch(error){
         return done(error);
     }
-});
+}));
 
 //serializzo e deserializzo l'utente
 //
