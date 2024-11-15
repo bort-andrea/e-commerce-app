@@ -21,6 +21,13 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+function ensureAuthenticated(req, res, next) {
+    if (req.isAuthenticated()) {
+        return next();
+    }
+    res.status(401).json({ message: 'Non sei autenticato' });
+}
+
 //endpoint per la registrazione
 //
 app.post('/registrati', async(req,res)=>{
@@ -107,7 +114,7 @@ app.get('/prodotti/:id', async (req, res) => {
 
 //endpoint per le richieste sulla tabella utenti
 //
-app.get('/utenti/:id', async (req, res) => {
+app.get('/utenti/:id',ensureAuthenticated, async (req, res) => {
     try {
         const result = await db.query(`SELECT * FROM utenti WHERE id = $1`,[req.params.id]);  
         res.json(result.rows);
@@ -117,7 +124,7 @@ app.get('/utenti/:id', async (req, res) => {
     }
 });
 
-app.put('/utenti/:id', async(req,res)=>{
+app.put('/utenti/:id',ensureAuthenticated, async(req,res)=>{
     try{
         const {username, password, email, indirizzo} = req.body;
 
@@ -145,7 +152,7 @@ app.put('/utenti/:id', async(req,res)=>{
 });
 
 //endpoint per le richieste sulla tabella carrello
-app.get('/carrello/:user', async (req, res) => {
+app.get('/carrello/:user',ensureAuthenticated, async (req, res) => {
     try {
         //trovo l'id del carrello corrispondente all'utente
         const carrello = await db.query(`SELECT id FROM carrelli WHERE id_utente = $1`,[req.params.user]);
@@ -161,7 +168,7 @@ app.get('/carrello/:user', async (req, res) => {
     }
 });
 
-app.post('/carrello/:user', async(req,res)=>{
+app.post('/carrello/:user',ensureAuthenticated, async(req,res)=>{
     try{
         const {id_prodotto, quantita} = req.body;
 
@@ -186,7 +193,7 @@ app.post('/carrello/:user', async(req,res)=>{
 });
 
 //endpoint per le richieste sulla tabella ordini
-app.get('/ordini/:user', async (req, res) => {
+app.get('/ordini/:user',ensureAuthenticated, async (req, res) => {
     try {
         const result = await db.query(`SELECT * FROM ordini WHERE id_utente = $1`, [req.params.user]);  
         res.json(result.rows);
@@ -196,7 +203,7 @@ app.get('/ordini/:user', async (req, res) => {
     }
 });
 
-app.get('/ordini/:user/:id', async (req, res) => {
+app.get('/ordini/:user/:id',ensureAuthenticated, async (req, res) => {
     try {
         const result = await db.query(`SELECT * FROM ordini_dett WHERE id_ordine = $1`, [req.params.id]); 
         res.json(result.rows);
@@ -208,7 +215,7 @@ app.get('/ordini/:user/:id', async (req, res) => {
 
 //endpoint checkout del carrello, creazione ordine, svuoto il carrello
 //
-app.post('/carrello/:user/checkout', async (req, res) => {
+app.post('/carrello/:user/checkout',ensureAuthenticated, async (req, res) => {
     try {
         const { metodo_pagamento, dettagli_pagamento } = req.body;
 
