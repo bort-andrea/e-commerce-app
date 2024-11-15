@@ -206,52 +206,80 @@ app.get('/ordini/:user/:id', async (req, res) => {
     }
 });
 
-app.post('/ordini/:user', async (req,res) =>{
-    try{
-        const {prodotti} = req.body;
-        // Verifico che i parametri obbligatori siano presenti
-        if (!prodotti || prodotti.length === 0) {
-            return res.status(400).json({ error: "Parametri mancanti: id_prodotto e quantita sono obbligatori" });
-        }
+//endpoint checkout del carrello, creazione ordine, svuoto il carrello
+//
+app.post('/carrello/:user/checkout', async (req, res) => {
+    try {
+        const { metodo_pagamento, dettagli_pagamento } = req.body;
 
-        //calcolo il totale dell'ordine
-        let totale_ordine = 0;
-        for (let prodotto of prodotti){
-
-            const {id_prodotto, quantita} = prodotto;
-            
-            const costo = await db.query(`SELECT prezzo FROM prodotti WHERE id = $1`,[id_prodotto]);
-            if(costo.rows.length !== 0){
-                //trasformo il prezzo in un numero utilizzabile
-                const costo_num = parseFloat(costo.rows[0].prezzo
-                                                                .replace(/[^\d,.-]/g, '')
-                                                                .replace(/\./g, '') 
-                                                                .replace(',', '.'));
-                totale_ordine +=  costo_num * quantita;
-            }else{
-                return res.status(404).json({error: `Prodotto con id ${id_prodotto} non trovato`});
-            }
-        }
-        //creo l'id dell'ordine 
-        const ordine = await db.query(`INSERT INTO ordini (id_utente, totale_ordine, stato) VALUES ($1, $2, 'in preparazione') RETURNING id`,[req.params.user, totale_ordine]);
-
-        const id_ordine = ordine.rows[0].id;
-
-        // Inserisco tutti i prodotti nel dettaglio ordine
-        const dettagli = prodotti.map(({ id_prodotto, quantita }) => [id_ordine, id_prodotto, quantita]);
-        const values = dettagli.map((_, i) => `($${i * 3 + 1}, $${i * 3 + 2}, $${i * 3 + 3})`).join(', ');
-
-        const flatValues = dettagli.flat();
-        await db.query(
-            `INSERT INTO ordini_dett (id_ordine, id_prodotto, quantita) 
-             VALUES ${values}`,
-            flatValues
+        // Validazione del carrello
+        const carrello = await db.query(
+            "SELECT c.id, cd.id_prodotto, cd.quantita, p.prezzo FROM carrelli c " +
+            "JOIN carrelli_dett cd ON c.id = cd.id_carrello " +
+            "JOIN prodotti p ON cd.id_prodotto = p.id " +
+            "WHERE c.id_utente = $1", 
+            [req.params.user]
         );
 
-        res.json({ message: 'Ordine creato con successo', ordine: ordine.rows[0] });
-    }catch(error){
-        console.error("Errore nella query:",error);
-        res.status(500).send('Errore nel server');
+        if (carrello.rows.length === 0) {
+            return res.status(404).json({ error: "Carrello non trovato o vuoto" });
+        }
+
+        // Calcolo del totale
+        let totale_ordine = 0;
+        carrello.rows.forEach(item => {
+            //trasformo il prezzo in un numero utilizzabile
+            const costo_num = parseFloat(item.prezzo
+                                                    .replace(/[^\d,.-]/g, '')
+                                                    .replace(/\./g, '') 
+                                                    .replace(',', '.'));
+            totale_ordine +=  costo_num * item.quantita;
+        });
+
+        // Simulazione del pagamento
+        if (!metodo_pagamento || !dettagli_pagamento) {
+            return res.status(400).json({ error: "Dettagli di pagamento mancanti" });
+        }
+
+        // In questo momento assumiamo che il pagamento vada sempre a buon fine
+        const pagamento_risultato = { successo: true };
+
+        if (!pagamento_risultato.successo) {
+            return res.status(500).json({ error: "Pagamento fallito. Riprova più tardi." });
+        }
+
+        // Creazione dell'ordine
+        const ordine = await db.query(
+            `INSERT INTO ordini (id_utente, totale_ordine, stato) 
+             VALUES ($1, $2, 'pagato') RETURNING id`,
+            [req.params.user, totale_ordine]
+        );
+
+        if (ordine.rows.length === 0) {
+            return res.status(500).json({ error: "Errore durante la creazione dell'ordine" });
+        }
+
+        const ordine_id = ordine.rows[0].id;
+
+        // Creazione dei dettagli dell'ordine
+        const dettagliOrdine = carrello.rows.map(item => [ordine_id, item.id_prodotto, item.quantita]);
+
+        const dettagliQuery = `
+            INSERT INTO ordini_dett (id_ordine, id_prodotto, quantita) 
+            VALUES ($1, $2, $3)`;
+
+        for (let dettaglio of dettagliOrdine) {
+            await db.query(dettagliQuery, dettaglio);
+        }
+
+        // Svuotamento del carrello
+        await db.query("DELETE FROM carrelli_dett WHERE id_carrello = $1", [carrello.rows[0].id]);
+
+        res.status(201).json({ message: "Pagamento riuscito e ordine creato", ordine_id });
+
+    } catch (error) {
+        console.error("Errore durante il checkout:", error);
+        res.status(500).json({ error: "Errore durante il checkout" });
     }
 });
 
