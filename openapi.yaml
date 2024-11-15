@@ -1,0 +1,262 @@
+openapi: 3.0.1
+info:
+  title: e-commerce
+  version: 1.0.0
+  description: First full-stack app
+  contact:
+    email: bortolotti.andrea93@gmail.com
+    name: Andrea Bortolotti
+paths:
+  /registrati:
+    post:
+      summary: Crea un nuovo utente
+      description: Registra un nuovo utente nel sistema.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                email:
+                  type: string
+                indirizzo:
+                  type: string
+      responses:
+        200:
+          description: Registrazione avvenuta con successo
+        400:
+          description: Username o email già utilizzati
+        500:
+          description: Errore nella registrazione dell'utente
+
+  /login:
+    post:
+      summary: Login utente
+      description: Autenticazione di un utente con username e password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        200:
+          description: Login avvenuto con successo
+        401:
+          description: Credenziali non valide
+        500:
+          description: Errore durante il login
+
+  /logout:
+    post:
+      summary: Logout utente
+      description: Termina la sessione dell'utente.
+      responses:
+        200:
+          description: Logout avvenuto con successo
+        500:
+          description: Errore durante il logout
+
+  /prodotti:
+    get:
+      summary: Recupera tutti i prodotti
+      description: Restituisce una lista di tutti i prodotti disponibili nel sistema.
+      responses:
+        200:
+          description: Lista dei prodotti
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    nome:
+                      type: string
+                    prezzo:
+                      type: number
+                    descrizione:
+                      type: string
+        500:
+          description: Errore nel recupero dei prodotti
+
+  /prodotti/{id}:
+    get:
+      summary: Recupera un prodotto per ID
+      description: Restituisce i dettagli di un prodotto specifico in base al suo ID.
+      parameters:
+        - name: id
+          in: path
+          description: ID del prodotto
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Dettagli del prodotto
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  nome:
+                    type: string
+                  prezzo:
+                    type: number
+                  descrizione:
+                    type: string
+        404:
+          description: Prodotto non trovato
+        500:
+          description: Errore nel recupero del prodotto
+
+  /carrello/{user}:
+    get:
+      summary: Recupera il carrello dell'utente
+      description: Restituisce i dettagli del carrello per un dato utente.
+      parameters:
+        - name: user
+          in: path
+          description: ID dell'utente
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Dettagli del carrello dell'utente
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        400:
+          description: Utente non trovato
+        500:
+          description: Errore nel recupero del carrello
+
+  /carrello/{user}:
+    post:
+      summary: Aggiungi un prodotto al carrello
+      description: Aggiunge un prodotto al carrello dell'utente.
+      parameters:
+        - name: user
+          in: path
+          description: ID dell'utente
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id_prodotto:
+                  type: integer
+                quantita:
+                  type: integer
+      responses:
+        201:
+          description: Prodotto aggiunto correttamente
+        400:
+          description: Parametri mancanti o errore nell'aggiungere il prodotto
+        500:
+          description: Errore nel server
+
+  /carrello/{user}/checkout:
+    post:
+      summary: Checkout del carrello e creazione ordine
+      description: Effettua il checkout del carrello e crea un ordine.
+      parameters:
+        - name: user
+          in: path
+          description: ID dell'utente
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                metodo_pagamento:
+                  type: string
+                dettagli_pagamento:
+                  type: string
+      responses:
+        201:
+          description: Pagamento riuscito e ordine creato
+        400:
+          description: Dettagli di pagamento mancanti o carrello vuoto
+        500:
+          description: Errore durante il checkout
+
+  /ordini/{user}:
+    get:
+      summary: Recupera gli ordini dell'utente
+      description: Restituisce una lista di ordini effettuati da un utente.
+      parameters:
+        - name: user
+          in: path
+          description: ID dell'utente
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Lista degli ordini dell'utente
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        500:
+          description: Errore nel recupero degli ordini
+
+  /ordini/{user}/{id}:
+    get:
+      summary: Recupera i dettagli di un ordine
+      description: Restituisce i dettagli di un ordine specifico per l'utente.
+      parameters:
+        - name: user
+          in: path
+          description: ID dell'utente
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          description: ID dell'ordine
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Dettagli dell'ordine
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        500:
+          description: Errore nel recupero dei dettagli dell'ordine
