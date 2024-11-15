@@ -41,11 +41,11 @@ passport.deserializeUser(async(id,done)=>{
         if(utente.rows.length === 0){
             return done(new Error('Utente non trovato'));
         }
-        done(null,user.rows[0]);
+        done(null,utente.rows[0]);
     }catch(errore){
         done(errore);
     }
-})
+});
 
 //esporto la configurazione
 module.exports = passport;

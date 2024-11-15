@@ -58,7 +58,7 @@ app.post('/registrati', async(req,res)=>{
 
 //endpoint per il login
 //
-app.post('/login', async(req,res)=>{
+app.post('/login', async(req,res,next)=>{
     passport.authenticate('local', (err,user,info)=>{
         
         if(err) return next(err);
@@ -145,9 +145,15 @@ app.put('/utenti/:id', async(req,res)=>{
 });
 
 //endpoint per le richieste sulla tabella carrello
-app.get('/carrello/:id', async (req, res) => {
+app.get('/carrello/:user', async (req, res) => {
     try {
-        const result = await db.query(`SELECT * FROM carrelli_dett WHERE id_carrello = $1`, [req.params.id]);  
+        //trovo l'id del carrello corrispondente all'utente
+        const carrello = await db.query(`SELECT id FROM carrelli WHERE id_utente = $1`,[req.params.user]);
+        if(carrello.rows.length === 0){
+            return res.status(400).json({error:"Utente non trovato"});
+        }
+        const id_carrello = carrello.rows[0].id;
+        const result = await db.query(`SELECT * FROM carrelli_dett WHERE id_carrello = $1`, [id_carrello]);  
         res.json(result.rows);
     } catch (error) {
         console.error('Errore nella query:', error);
@@ -165,11 +171,11 @@ app.post('/carrello/:user', async(req,res)=>{
         }
 
         //trovo l'id del carrello corrispondente all'utente
-        const carrello = await db.query(`SELECT id_carrello FROM carrelli WHERE id_utente = $1`,[req.params.user]);
+        const carrello = await db.query(`SELECT id FROM carrelli WHERE id_utente = $1`,[req.params.user]);
         if(carrello.rows.length === 0){
             return res.status(400).json({error:"Utente non trovato"});
         }
-        const id_carrello = carrello.rows[0].id_carrello;
+        const id_carrello = carrello.rows[0].id;
         await db.query(`INSERT INTO carrelli_dett (id_carrello, id_prodotto, quantita) 
                                          VALUES ($1, $2, $3)`,[id_carrello, id_prodotto,quantita]);
         res.status(201).json({message:"Prodotto inserito correttamente"});
@@ -196,6 +202,55 @@ app.get('/ordini/:user/:id', async (req, res) => {
         res.json(result.rows);
     } catch (error) {
         console.error('Errore nella query:', error);
+        res.status(500).send('Errore nel server');
+    }
+});
+
+app.post('/ordini/:user', async (req,res) =>{
+    try{
+        const {prodotti} = req.body;
+        // Verifico che i parametri obbligatori siano presenti
+        if (!prodotti || prodotti.length === 0) {
+            return res.status(400).json({ error: "Parametri mancanti: id_prodotto e quantita sono obbligatori" });
+        }
+
+        //calcolo il totale dell'ordine
+        let totale_ordine = 0;
+        for (let prodotto of prodotti){
+
+            const {id_prodotto, quantita} = prodotto;
+            
+            const costo = await db.query(`SELECT prezzo FROM prodotti WHERE id = $1`,[id_prodotto]);
+            if(costo.rows.length !== 0){
+                //trasformo il prezzo in un numero utilizzabile
+                const costo_num = parseFloat(costo.rows[0].prezzo
+                                                                .replace(/[^\d,.-]/g, '')
+                                                                .replace(/\./g, '') 
+                                                                .replace(',', '.'));
+                totale_ordine +=  costo_num * quantita;
+            }else{
+                return res.status(404).json({error: `Prodotto con id ${id_prodotto} non trovato`});
+            }
+        }
+        //creo l'id dell'ordine 
+        const ordine = await db.query(`INSERT INTO ordini (id_utente, totale_ordine, stato) VALUES ($1, $2, 'in preparazione') RETURNING id`,[req.params.user, totale_ordine]);
+
+        const id_ordine = ordine.rows[0].id;
+
+        // Inserisco tutti i prodotti nel dettaglio ordine
+        const dettagli = prodotti.map(({ id_prodotto, quantita }) => [id_ordine, id_prodotto, quantita]);
+        const values = dettagli.map((_, i) => `($${i * 3 + 1}, $${i * 3 + 2}, $${i * 3 + 3})`).join(', ');
+
+        const flatValues = dettagli.flat();
+        await db.query(
+            `INSERT INTO ordini_dett (id_ordine, id_prodotto, quantita) 
+             VALUES ${values}`,
+            flatValues
+        );
+
+        res.json({ message: 'Ordine creato con successo', ordine: ordine.rows[0] });
+    }catch(error){
+        console.error("Errore nella query:",error);
         res.status(500).send('Errore nel server');
     }
 });
